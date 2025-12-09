@@ -35,7 +35,8 @@ app:
     provider: ${LLM_PROVIDER:openai}
     openai:
       api-key: ${OPENAI_API_KEY:}
-      model: ${OPENAI_MODEL:gpt-4o-mini}
+      chat-model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+      embedding-model: ${OPENAI_EMBED_MODEL:text-embedding-3-small}
   jwt:
     secret: ${JWT_SECRET:change_me}
     expires-in-minutes: ${JWT_EXPIRES_MIN:120}

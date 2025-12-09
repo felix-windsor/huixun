@@ -2,6 +2,7 @@ package com.huixun.lms.model;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "questions")
@@ -11,6 +12,7 @@ public class Question {
     private Long id;
 
     @ManyToOne(optional = false)
+    @JsonIgnore
     private Quiz quiz;
 
     @Column(nullable = false)

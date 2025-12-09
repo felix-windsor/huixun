@@ -17,7 +17,7 @@ public class QuestionGenerationService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     public QuestionGenerationService(@Value("${app.llm.openai.api-key}") String apiKey,
-                                     @Value("${app.llm.openai.model}") String modelName) {
+                                     @Value("${app.llm.openai.chat-model}") String modelName) {
         if (apiKey != null && !apiKey.isBlank()) {
             this.chatModel = OpenAiChatModel.builder().apiKey(apiKey).modelName(modelName).build();
         } else {
@@ -29,16 +29,16 @@ public class QuestionGenerationService {
         if (chatModel == null) {
             GeneratedQuestion g = new GeneratedQuestion();
             g.type = "SINGLE";
-            g.stem = "根据片段内容的示例题：" + trim(f.getText());
-            g.options = List.of("A", "B", "C", "D");
-            g.answer = "A";
+            g.stem = "阅读以下片段，选择最符合片段主要内容的选项：\n" + trim(f.getText());
+            g.options = List.of("与片段主要内容一致", "与片段无关", "与片段部分相关", "无法判断");
+            g.answer = "与片段主要内容一致";
             g.difficulty = "MEDIUM";
             g.tags = List.of("示例");
             return g;
         }
-        String prompt = buildPrompt(f.getText());
-        String out = chatModel.generate(prompt);
         try {
+            String prompt = buildPrompt(f.getText());
+            String out = chatModel.generate(prompt);
             JsonNode n = mapper.readTree(out);
             GeneratedQuestion g = new GeneratedQuestion();
             g.type = n.path("type").asText("SINGLE");
@@ -55,20 +55,79 @@ public class QuestionGenerationService {
         } catch (Exception e) {
             GeneratedQuestion g = new GeneratedQuestion();
             g.type = "SINGLE";
-            g.stem = "题目生成失败，使用回退：" + trim(f.getText());
-            g.options = List.of("A", "B", "C", "D");
-            g.answer = "A";
+            g.stem = "根据片段内容选择最符合的陈述：\n" + trim(f.getText());
+            List<String> opts = buildFallbackOptions(f.getText());
+            g.options = opts;
+            g.answer = opts.isEmpty() ? "" : opts.get(0);
             g.difficulty = "EASY";
-            g.tags = List.of("回退");
+            g.tags = fallbackTags(f.getText());
             return g;
         }
     }
 
+    private List<String> buildFallbackOptions(String text) {
+        List<String> sents = splitSentences(text);
+        String main = sents.stream().filter(x -> x.length() >= 8).findFirst().orElse(trim(text));
+        String s1 = shorten(main);
+        String s2 = shorten(mutate(main));
+        String s3 = sents.size() > 1 ? shorten(sents.get(1)) : shorten(mutate(main + "内容"));
+        String s4 = sents.size() > 2 ? shorten(sents.get(2)) : shorten(mutate(main + "目标"));
+        List<String> opts = new ArrayList<>();
+        for (String s : List.of(s1, s2, s3, s4)) {
+            if (s != null && !s.isBlank() && opts.stream().noneMatch(o -> o.equals(s))) opts.add(s);
+        }
+        while (opts.size() < 4) opts.add(shorten(mutate(main + opts.size())));
+        return opts.subList(0, Math.min(4, opts.size()));
+    }
+
+    private List<String> splitSentences(String t) {
+        if (t == null) return java.util.Collections.emptyList();
+        String s = t.replaceAll("\s+", " ");
+        String[] parts = s.split("[。！？.!?]\s*");
+        List<String> out = new ArrayList<>();
+        for (String p : parts) { String x = p.trim(); if (!x.isEmpty()) out.add(x); }
+        return out;
+    }
+
+    private String shorten(String s) {
+        if (s == null) return "";
+        return s.length() > 30 ? s.substring(0, 30) + "…" : s;
+    }
+
+    private String mutate(String s) {
+        if (s == null) return "";
+        String x = s;
+        x = x.replace("必须", "可以");
+        x = x.replace("应当", "不应");
+        x = x.replace("禁止", "允许");
+        x = x.replace("加强", "削弱");
+        x = x.replace("提高", "降低");
+        x = x.replace("促进", "限制");
+        return x;
+    }
+
+    private List<String> fallbackTags(String t) {
+        if (t == null) return java.util.Collections.emptyList();
+        String s = t.replaceAll("\s+", " ");
+        java.util.Set<String> set = new java.util.LinkedHashSet<>();
+        String[] parts = s.split("[，。；,;]\s*");
+        for (String p : parts) {
+            String w = p.trim();
+            if (w.length() >= 4) set.add(w.substring(0, Math.min(8, w.length())));
+            if (set.size() >= 3) break;
+        }
+        return new java.util.ArrayList<>(set);
+    }
+
     private String buildPrompt(String text) {
-        return "你是考试命题专家。根据以下学习片段生成一道题目，并严格输出JSON：\n" +
+        return "你是考试命题专家。根据以下学习片段生成一道中文单选题，严格返回JSON且不包含任何额外文本：\n" +
                 "片段：\n" + trim(text) + "\n" +
-                "JSON字段：{type:'SINGLE|MULTI|TRUE_FALSE|SHORT_ANSWER',stem:string,options:string[],answer:string,difficulty:'EASY|MEDIUM|HARD',knowledgeTags:string[]}\n" +
-                "要求：\n1. 单选题答案为options中的一个\n2. 内容与片段紧密相关\n3. 使用简洁中文\n";
+                "JSON字段：{type:'SINGLE',stem:string,options:string[],answer:string,difficulty:'EASY|MEDIUM|HARD',knowledgeTags:string[]}\n" +
+                "规则：\n" +
+                "1. 生成4个不同且具体的中文选项，只有1个为正确项，其余为贴近但错误的干扰项。\n" +
+                "2. 不允许使用泛化选项，例如‘与片段无关’或‘无法判断’。\n" +
+                "3. 每个选项不超过30字，answer必须等于options中的完整字符串。\n" +
+                "4. stem简洁明确，knowledgeTags基于片段主题词。\n";
     }
 
     private String trim(String t) {

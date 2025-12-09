@@ -41,7 +41,11 @@ public class EmbeddingService {
             for (ContentFragment f : fragments) {
                 List<Double> vec = null;
                 if ("openai".equalsIgnoreCase(providerName)) {
-                    vec = openAiProvider.embed(f.getText());
+                    try {
+                        vec = openAiProvider.embed(f.getText());
+                    } catch (Exception ex) {
+                        vec = java.util.Collections.emptyList();
+                    }
                 }
                 if (vec == null || vec.isEmpty()) {
                     double[] rv = randomVec(64);
@@ -68,8 +72,10 @@ public class EmbeddingService {
 
     public List<Double> embedText(String text) {
         if ("openai".equalsIgnoreCase(providerName)) {
-            List<Double> v = openAiProvider.embed(text);
-            if (v != null && !v.isEmpty()) return v;
+            try {
+                List<Double> v = openAiProvider.embed(text);
+                if (v != null && !v.isEmpty()) return v;
+            } catch (Exception ignored) {}
         }
         double[] rv = randomVec(64);
         java.util.List<Double> list = new java.util.ArrayList<>();

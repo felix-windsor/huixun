@@ -9,6 +9,7 @@ import QuestionEdit from '../pages/QuestionEdit.vue'
 import Attempt from '../pages/Attempt.vue'
 import Analytics from '../pages/Analytics.vue'
 import ComponentsDemo from '../pages/ComponentsDemo.vue'
+import DocumentList from '../pages/DocumentList.vue'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
@@ -16,6 +17,7 @@ const routes = [
   { path: '/login', component: Login },
   { path: '/dashboard', component: Dashboard },
   { path: '/pdf-upload', component: PdfUpload },
+  { path: '/documents', component: DocumentList },
   { path: '/fragments/:id', component: Fragments },
   { path: '/courses', component: Courses },
   { path: '/quiz/:id', component: QuizManage },

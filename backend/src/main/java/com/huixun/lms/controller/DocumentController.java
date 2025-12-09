@@ -60,6 +60,16 @@ public class DocumentController {
         }
     }
 
+    @GetMapping
+    public ResponseEntity<?> findAll() {
+        try {
+            return ResponseEntity.ok(documentRepository.findAll());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("查询文档列表失败");
+        }
+    }
+
     static class UploadResponse { public Long documentId; UploadResponse(Long id){this.documentId=id;} }
     static class StatusResponse { public String status; public String error; StatusResponse(String s,String e){status=s;error=e;} }
 }

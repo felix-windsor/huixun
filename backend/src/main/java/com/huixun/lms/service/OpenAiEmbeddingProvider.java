@@ -13,7 +13,7 @@ public class OpenAiEmbeddingProvider implements EmbeddingProvider {
     private final OpenAiEmbeddingModel model;
 
     public OpenAiEmbeddingProvider(@Value("${app.llm.openai.api-key}") String apiKey,
-                                   @Value("${app.llm.openai.model}") String modelName) {
+                                   @Value("${app.llm.openai.embedding-model}") String modelName) {
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             this.model = OpenAiEmbeddingModel.builder().apiKey(apiKey).modelName(modelName).build();
         } else {

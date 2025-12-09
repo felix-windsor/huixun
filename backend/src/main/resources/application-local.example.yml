@@ -14,10 +14,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
 
-embedding:
-  provider: ${LLM_PROVIDER}
-
-openai:
-  api-key: ${OPENAI_API_KEY}
-  model: ${OPENAI_MODEL}
-
+app:
+  llm:
+    provider: ${LLM_PROVIDER}
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat-model: ${OPENAI_CHAT_MODEL}
+      embedding-model: ${OPENAI_EMBED_MODEL}
