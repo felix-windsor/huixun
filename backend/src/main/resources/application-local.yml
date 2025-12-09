@@ -1,0 +1,9 @@
+spring.datasource.url: jdbc:postgresql://localhost:5432/lms
+spring.datasource.username: postgres
+spring.datasource.password: postgres
+app.vector.enabled: true
+app.jwt.secret: Lemn/LrNGk75Yk6y0v17XP+Y+My+V8yuQYrEdGcL7n6xmSFWBTewbsrqd4gr2CMV2IMnHuBuLlgzaaJb8zTbGg==
+app.llm.provider: openai
+app.llm.openai.api-key: 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
+app.llm.openai.model: text-embedding-3-small
+SPRING_PROFILES_ACTIVE: local

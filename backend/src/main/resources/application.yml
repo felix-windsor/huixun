@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: lms-backend
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:lms}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+logging:
+  level:
+    root: INFO
+    org.springframework.web: INFO
+app:
+  llm:
+    provider: ${LLM_PROVIDER:openai}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+  jwt:
+    secret: ${JWT_SECRET:change_me}
+    expires-in-minutes: ${JWT_EXPIRES_MIN:120}
+  vector:
+    enabled: ${VECTOR_ENABLED:true}
