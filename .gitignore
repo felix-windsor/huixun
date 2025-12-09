@@ -49,3 +49,5 @@ storage/
 
 # Optional: keep directory in repo via placeholder
 # !storage/.gitkeep
+
+backend/src/main/resources/application-local.yml
