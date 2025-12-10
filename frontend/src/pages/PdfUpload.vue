@@ -9,9 +9,10 @@
     </el-upload>
     <div v-if="documentId" style="margin-top:12px;">
       <el-alert type="success" :title="'已上传，文档ID：' + documentId" show-icon />
-      <el-button style="margin-top:8px;" @click="startParse" type="primary" :disabled="parsing">{{ parsing ? '正在解析...' : '开始解析' }}</el-button>
+      <div v-if="noParse" style="margin-top:8px;color:#909399;">已选择已上传文档，跳过解析，直接出题</div>
+      <el-button v-if="!noParse" style="margin-top:8px;" @click="startParse" type="primary" :disabled="parsing">{{ parsing ? '正在解析...' : '开始解析' }}</el-button>
       <div style="margin-top:8px;">状态：{{ statusDisplay }}</div>
-      <div v-if="parsing" style="margin-top:8px;">
+      <div v-if="parsing && userTriggered && !noParse" style="margin-top:8px;">
         <el-progress :percentage="progress" :status="progressStatus" :stroke-width="14" :striped="true" :striped-flow="true" />
         <div style="margin-top:8px;color:#6b7280;">{{ progressText }}</div>
       </div>
@@ -50,6 +51,8 @@ const route = useRoute()
 const documentId = ref<number>()
 const status = ref('')
 const parsing = ref(false)
+const userTriggered = ref(false)
+const noParse = ref(false)
 const progress = ref(0)
 const progressStatus = ref<'success' | 'exception' | undefined>(undefined)
 const progressText = ref('')
@@ -79,6 +82,7 @@ async function doUpload(options:any){
 
 async function startParse(){
   if(!documentId.value) return
+  userTriggered.value = true
   parsing.value = true
   progress.value = 10
   progressStatus.value = undefined
@@ -93,12 +97,12 @@ async function pollStatus(){
   const res = await client.get(`/documents/${documentId.value}/status`)
   status.value = res.data.status
   if(status.value === 'PARSING') {
-    parsing.value = true
+    if (userTriggered.value) parsing.value = true
     statusDisplay.value = '解析中'
     progressText.value = '正在解析PDF内容...'
     if (progress.value < 60) progress.value = Math.min(60, progress.value + 5)
   } else if(status.value === 'EMBEDDING') {
-    parsing.value = true
+    if (userTriggered.value) parsing.value = true
     statusDisplay.value = '嵌入向量中'
     progressText.value = '正在生成向量并写入数据库...'
     if (progress.value < 95) progress.value = Math.max(65, Math.min(95, progress.value + 3))
@@ -114,7 +118,31 @@ async function pollStatus(){
     progressStatus.value = 'exception'
     progressText.value = '解析失败，请重试或检查文件'
   }
-  if(status.value !== 'DONE' && status.value !== 'FAILED') setTimeout(pollStatus, 1200)
+  if(userTriggered.value && status.value !== 'DONE' && status.value !== 'FAILED') setTimeout(pollStatus, 1200)
+}
+
+async function checkStatusOnce(){
+  if(!documentId.value) return
+  const res = await client.get(`/documents/${documentId.value}/status`)
+  status.value = res.data.status
+  if(status.value === 'DONE') {
+    parsing.value = false
+    statusDisplay.value = '完成'
+    progressText.value = '解析完成'
+    progress.value = 100
+    progressStatus.value = 'success'
+  } else if(status.value === 'FAILED') {
+    parsing.value = false
+    statusDisplay.value = '失败'
+    progressStatus.value = 'exception'
+    progressText.value = '解析失败，请重试或检查文件'
+  } else if(status.value === 'UPLOADED') {
+    parsing.value = false
+    statusDisplay.value = '已上传'
+    progressText.value = ''
+    progress.value = 0
+    progressStatus.value = undefined
+  }
 }
 
 function viewFragments(){
@@ -128,6 +156,7 @@ onMounted(() => {
       const v = Number(q.docId)
       if (!Number.isNaN(v)) documentId.value = v
     }
+    if (q.noParse === '1') noParse.value = true
     if (!documentId.value) {
       try {
         const s = localStorage.getItem('lastDocumentId')
@@ -137,7 +166,7 @@ onMounted(() => {
         }
       } catch {}
     }
-    if (documentId.value) pollStatus()
+    if (documentId.value) checkStatusOnce()
   }
   loadCourses()
 })

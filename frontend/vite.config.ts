@@ -17,5 +17,8 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  preview: {
+    port: 5173
   }
 })

@@ -70,8 +70,7 @@ public class QuizController {
         List<Question> qs = new ArrayList<>();
         int n = Math.min(count, fragments.size());
         for (int i = 0; i < n; i++) {
-            var g = generationService.generateFromFragment(fragments.get(i));
-            if (type != null && !type.isBlank()) g.type = type;
+            var g = generationService.generateFromFragment(fragments.get(i), type);
             Question q = new Question();
             q.setQuiz(quiz);
             q.setType(g.type);
@@ -87,7 +86,7 @@ public class QuizController {
         }
         questionRepository.saveAll(qs);
         List<QuestionDTO> out = qs.stream().map(q -> new QuestionDTO(
-                q.getId(), q.getType(), q.getDifficulty(), q.getStem(), q.getOptionsJson(), q.getAnswer(), q.getFragmentId()
+                q.getId(), q.getType(), q.getDifficulty(), q.getStem(), q.getOptionsJson(), q.getAnswer(), q.getFragmentId(), qualityScore(q)
         )).toList();
         return ResponseEntity.ok(out);
     }
@@ -123,10 +122,9 @@ public class QuizController {
         List<Question> qs = new ArrayList<>();
         int n = Math.min(count, selected.size());
         for (int i = 0; i < n; i++) {
-            var g = generationService.generateFromFragment(selected.get(i));
+            var g = generationService.generateFromFragment(selected.get(i), type);
             if (difficulty != null && !difficulty.isBlank()) g.difficulty = difficulty;
             if (tags != null && !tags.isBlank()) g.tags = List.of(tags);
-            if (type != null && !type.isBlank()) g.type = type;
             Question q = new Question();
             q.setQuiz(quiz);
             q.setType(g.type);
@@ -142,7 +140,7 @@ public class QuizController {
         }
         questionRepository.saveAll(qs);
         List<QuestionDTO> out = qs.stream().map(q -> new QuestionDTO(
-                q.getId(), q.getType(), q.getDifficulty(), q.getStem(), q.getOptionsJson(), q.getAnswer(), q.getFragmentId()
+                q.getId(), q.getType(), q.getDifficulty(), q.getStem(), q.getOptionsJson(), q.getAnswer(), q.getFragmentId(), qualityScore(q)
         )).toList();
         return ResponseEntity.ok(out);
     }
@@ -189,9 +187,48 @@ public class QuizController {
 
     static class IdResponse { public Long id; IdResponse(Long id){this.id=id;} }
     static class QuestionDTO {
-        public Long id; public String type; public String difficulty; public String stem; public String optionsJson; public String answer; public Long fragmentId;
-        public QuestionDTO(Long id, String type, String difficulty, String stem, String optionsJson, String answer, Long fragmentId){
-            this.id=id; this.type=type; this.difficulty=difficulty; this.stem=stem; this.optionsJson=optionsJson; this.answer=answer; this.fragmentId=fragmentId;
+        public Long id; public String type; public String difficulty; public String stem; public String optionsJson; public String answer; public Long fragmentId; public int qualityScore;
+        public QuestionDTO(Long id, String type, String difficulty, String stem, String optionsJson, String answer, Long fragmentId, int qualityScore){
+            this.id=id; this.type=type; this.difficulty=difficulty; this.stem=stem; this.optionsJson=optionsJson; this.answer=answer; this.fragmentId=fragmentId; this.qualityScore=qualityScore;
+        }
+    }
+
+    private int qualityScore(Question q) {
+        try {
+            String type = q.getType() == null ? "" : q.getType().trim().toUpperCase();
+            String stem = q.getStem() == null ? "" : q.getStem();
+            String ans = q.getAnswer() == null ? "" : q.getAnswer();
+            java.util.List<String> opts;
+            try {
+                opts = mapper.readValue(q.getOptionsJson() == null ? "[]" : q.getOptionsJson(), new com.fasterxml.jackson.core.type.TypeReference<java.util.List<String>>(){});
+            } catch (Exception e) { opts = java.util.Collections.emptyList(); }
+            int score = 0;
+            if (stem.length() >= 12 && stem.length() <= 180) score += 20; else if (stem.length() >= 8) score += 10;
+            java.util.Set<String> uniq = new java.util.LinkedHashSet<>();
+            for (Object o : opts) { if (o != null) uniq.add(String.valueOf(o)); }
+            if (uniq.size() >= 4) score += 30; else if (uniq.size() >= 3) score += 15;
+            if ("TRUE_FALSE".equals(type)) {
+                if (uniq.contains("正确") && uniq.contains("错误")) score += 20;
+                if ("正确".equals(ans) || "错误".equals(ans)) score += 20;
+            } else if ("MULTI".equals(type)) {
+                String[] parts = ans.split("[;,|]");
+                int valid = 0;
+                for (String p : parts) {
+                    String m = p.trim().toUpperCase();
+                    if (m.length()==1 && m.charAt(0)>='A' && m.charAt(0)<='Z') {
+                        int idx = m.charAt(0) - 'A';
+                        if (idx >=0 && idx < uniq.size()) valid++;
+                    }
+                }
+                score += Math.min(30, valid * 15);
+                if (valid >= 2) score += 10;
+            } else {
+                if (uniq.contains(ans)) score += 30; else if (!ans.isBlank()) score += 10;
+            }
+            if (score > 100) score = 100; if (score < 0) score = 0;
+            return score;
+        } catch (Exception e) {
+            return 50;
         }
     }
 }

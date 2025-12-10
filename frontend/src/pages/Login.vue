@@ -11,6 +11,9 @@
               <el-input v-model="password" type="password" />
             </el-form-item>
             <el-button type="primary" style="width:100%" @click="login">登录</el-button>
+            <div style="margin-top:8px;text-align:center;">
+              <el-link type="info" @click="testApi">测试后端连接</el-link>
+            </div>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="注册" name="register">
@@ -41,6 +44,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import client from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const store = useAuthStore()
@@ -52,15 +56,34 @@ const regPass = ref('')
 const regRole = ref<'STUDENT'|'INSTRUCTOR'|'ADMIN'>('STUDENT')
 
 async function login() {
-  const res = await client.post('/auth/login', { username: username.value, password: password.value })
-  store.setToken(res.data.token, res.data.role)
-  router.push('/dashboard')
+  try {
+    const res = await client.post('/auth/login', { username: username.value, password: password.value })
+    store.setToken(res.data.token, res.data.role)
+    router.push('/dashboard')
+  } catch (e:any) {
+    ElMessage.error('登录失败，请检查网络或凭证')
+  }
 }
 
 async function register() {
-  await client.post('/auth/register', { username: regUser.value, password: regPass.value, role: regRole.value })
-  const res = await client.post('/auth/login', { username: regUser.value, password: regPass.value })
-  store.setToken(res.data.token, res.data.role)
-  router.push('/dashboard')
+  try {
+    await client.post('/auth/register', { username: regUser.value, password: regPass.value, role: regRole.value })
+    const res = await client.post('/auth/login', { username: regUser.value, password: regPass.value })
+    store.setToken(res.data.token, res.data.role)
+    router.push('/dashboard')
+  } catch (e:any) {
+    ElMessage.error('注册或登录失败，请重试')
+  }
+}
+
+async function testApi(){
+  try {
+    const res = await client.get('/health')
+    const ok = res?.data === 'ok' || res?.data?.ok === true
+    if (ok) ElMessage.success('后端连接正常')
+    else ElMessage.warning('后端连接异常')
+  } catch (e:any) {
+    ElMessage.error('无法连接后端，请检查服务是否启动或端口设置')
+  }
 }
 </script>

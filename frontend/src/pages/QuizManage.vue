@@ -19,12 +19,23 @@
         <el-option label="MEDIUM" value="MEDIUM" />
         <el-option label="HARD" value="HARD" />
       </el-select>
+      <span v-if="typeSel==='MULTI'" style="color:#909399;">多选题预计正确项数量：{{ desiredMultiCount(difficulty || 'MEDIUM') }}</span>
+      <el-select v-model="minQuality" placeholder="质量筛选" style="width:140px;">
+        <el-option label="不限" value="ALL" />
+        <el-option label="≥60" :value="60" />
+        <el-option label="≥80" :value="80" />
+      </el-select>
       <el-button @click="generateByQuery" :disabled="!quizId || !documentId" >重新生成</el-button>
     </div>
-    <el-table :data="questions" v-loading="loading">
+    <el-table :data="viewQuestions" :row-class-name="tableRowClass" v-loading="loading">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="type" label="类型" width="120" />
       <el-table-column prop="difficulty" label="难度" width="120" />
+      <el-table-column label="质量分" width="100">
+        <template #default="{ row }">
+          <el-tag :type="qualityTagType(row.qualityScore)" effect="light">{{ row.qualityScore }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="stem" label="题干" show-overflow-tooltip />
       <el-table-column label="选项" min-width="240">
         <template #default="{ row }">
@@ -40,7 +51,7 @@
 
 <script setup lang="ts">
 import client from '../api/client'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 const route = useRoute()
 const router = useRouter()
@@ -54,6 +65,11 @@ const questions = ref<any[]>([])
 const loading = ref(false)
 const difficulty = ref<string>('')
 const typeSel = ref<string>('SINGLE')
+const minQuality = ref<string | number>('ALL')
+const viewQuestions = computed(()=>{
+  const mq = minQuality.value
+  return questions.value.filter(q => typeof mq === 'number' ? Number(q.qualityScore || 0) >= mq : true)
+})
 
 async function createQuiz(){
   const res = await client.post('/quizzes', { course: { id: courseId }, title: title.value, description: desc.value })
@@ -123,10 +139,47 @@ function parseOptions(row:any){
 function formatAnswer(row:any){
   const opts = parseOptions(row)
   const a = String(row.answer || '')
+  const t = String(row.type || '')
+  if (t === 'MULTI') {
+    const parts = a.split(/[;,|]/).map(s => s.trim()).filter(Boolean)
+    const letters: string[] = []
+    for (const p of parts) {
+      const m = p.toUpperCase()
+      if (/^[A-Z]$/.test(m)) { letters.push(m) ; continue }
+      const idx = opts.findIndex(o => String(o) === p)
+      if (idx >= 0) letters.push(String.fromCharCode(65 + idx))
+    }
+    return letters.length ? letters.join(',') : a
+  }
+  if (t === 'TRUE_FALSE') {
+    return a
+  }
   if (opts.length) {
     const idx = opts.findIndex(o => String(o) === a)
     if (idx >= 0) return String.fromCharCode(65 + idx)
   }
   return a
 }
+
+function desiredMultiCount(d:string){
+  const v = String(d || '').toUpperCase()
+  if (v === 'EASY') return 1
+  if (v === 'HARD') return 3
+  return 2
+}
+
+function tableRowClass({ row }: any){
+  const s = Number(row.qualityScore || 0)
+  return s < 60 ? 'row-low' : ''
+}
+
+function qualityTagType(s:number){
+  if (s >= 80) return 'success'
+  if (s >= 60) return 'warning'
+  return 'danger'
+}
 </script>
+
+<style scoped>
+.row-low td { background-color: #fff4e6; }
+</style>

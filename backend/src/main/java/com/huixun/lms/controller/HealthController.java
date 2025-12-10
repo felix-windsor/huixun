@@ -40,15 +40,15 @@ public class HealthController {
         resp.put("provider", providerName);
         try {
             if ("openai".equalsIgnoreCase(providerName)) {
-                var v = openAiProvider.embed("health check");
+                java.util.List<Double> v = openAiProvider.embed("health check");
                 boolean ok = v != null && !v.isEmpty();
                 resp.put("ok", ok);
-                resp.put("vector_dim", ok ? v.size() : 0);
+                resp.put("vector_dim", v == null ? 0 : v.size());
             } else {
-                var v = embeddingService.embedText("health check");
+                java.util.List<Double> v = embeddingService.embedText("health check");
                 boolean ok = v != null && !v.isEmpty();
                 resp.put("ok", ok);
-                resp.put("vector_dim", ok ? v.size() : 0);
+                resp.put("vector_dim", v == null ? 0 : v.size());
             }
             return ResponseEntity.ok(resp);
         } catch (Exception e) {
@@ -68,8 +68,13 @@ public class HealthController {
             var g = generationService.generateFromFragment(f);
             boolean ok = g != null && g.stem != null && !g.stem.isBlank();
             resp.put("ok", ok);
-            resp.put("type", g.type);
-            resp.put("difficulty", g.difficulty);
+            if (g != null) {
+                resp.put("type", g.type == null ? "" : g.type);
+                resp.put("difficulty", g.difficulty == null ? "" : g.difficulty);
+            } else {
+                resp.put("type", "");
+                resp.put("difficulty", "");
+            }
             return ResponseEntity.ok(resp);
         } catch (Exception e) {
             resp.put("ok", false);
